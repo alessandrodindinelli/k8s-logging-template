@@ -1,0 +1,105 @@
+# NB:
+# - For AWS regions, use the standard AWS region codes, e.g. us-east-1, eu-west-1, etc.
+# - For S3 bucket names, do NOT include the prefix s3://, use simply the bucket name.
+# - For Role ARN, use the full ARN string provided by AWS IAM.
+
+loki:
+  loki:
+    auth_enabled: false
+    lokiCanary: # Tool to verify Loki is working correctly
+      enabled: false
+    schemaConfig:
+      configs:
+        - from: "2024-04-01"
+          store: tsdb
+          object_store: s3
+          schema: v13
+          index:
+            prefix: loki_
+            period: 24h
+    storage_config:
+      aws:
+        region: REPLACE_ME
+        bucketnames: REPLACE_ME
+        s3forcepathstyle: false
+    ingester:
+      chunk_encoding: snappy
+    pattern_ingester:
+      enabled: true
+    limits_config:
+      allow_structured_metadata: true
+      volume_enabled: true
+      retention_period: 24h
+    compactor:
+      retention_enabled: true
+      delete_request_store: s3
+    ruler:
+      enable_api: true
+      storage:
+        type: s3
+        s3:
+          region: REPLACE_ME
+          bucketnames: REPLACE_ME
+          s3forcepathstyle: false
+    querier:
+      max_concurrent: 4
+    storage:
+      type: s3
+      bucketNames:
+        chunks: REPLACE_ME
+        ruler: REPLACE_ME
+      s3:
+        region: REPLACE_ME
+
+  serviceAccount:
+    create: true
+    annotations:
+      "eks.amazonaws.com/role-arn": REPLACE_ME
+
+  gateway:
+    ingress:
+      enabled: true
+      hosts:
+        - host: loki-gateway.loki.svc.cluster.local
+          paths:
+            - path: /
+              pathType: Prefix
+    basicAuth:
+      enabled: false
+
+  deploymentMode: Distributed
+  ingester: # Receives logs from distributors and writes them to storage
+    replicas: 3
+    zoneAwareReplication:
+      enabled: false
+  querier: # Executes LogQL queries by fetching data from storage and ingesters
+    replicas: 3
+    maxUnavailable: 2
+  queryFrontend: # Splits large queries into smaller chunks and caches results
+    replicas: 2
+    maxUnavailable: 1
+  queryScheduler: # Queues and schedules queries to queriers
+    replicas: 2
+  distributor: # Hashes and distributes logs to ingesters
+    replicas: 3
+    maxUnavailable: 2
+  compactor: # Applies retention policies and compacts index files
+    replicas: 1
+  indexGateway: # Serves index queries from object storage
+    replicas: 2
+    maxUnavailable: 1
+  ruler: # Evaluates recording and alerting rules
+    replicas: 1
+    maxUnavailable: 1
+
+  # Components not needed for Loki in Distributed mode
+  minio:
+    enabled: false
+  backend:
+    replicas: 0
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  singleBinary:
+    replicas: 0
